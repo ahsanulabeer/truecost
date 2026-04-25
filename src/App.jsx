@@ -5,73 +5,18 @@ import SearchForm from "./components/SearchForm";
 import LoadingState, { LOADING_STEP_COUNT } from "./components/LoadingState";
 import ResultView from "./components/ResultView";
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const RENTCAST_API_URL = "https://api.rentcast.io/v1";
-
 async function fetchRentCastData(address) {
-  const apiKey = import.meta.env.VITE_RENTCAST_API_KEY;
-  if (!apiKey) return null;
-
   try {
-    const listingsResp = await fetch(
-      `${RENTCAST_API_URL}/listings/sale?address=${encodeURIComponent(address)}&status=Active&limit=1`,
-      { headers: { "X-Api-Key": apiKey } }
-    );
-    if (listingsResp.ok) {
-      const listings = await listingsResp.json();
-      if (listings.length > 0) {
-        const listing = listings[0];
-        return {
-          source: "listing",
-          price: listing.price,
-          address: listing.formattedAddress,
-          city: listing.city,
-          state: listing.state,
-          zipCode: listing.zipCode,
-          beds: listing.bedrooms,
-          baths: listing.bathrooms,
-          sqft: listing.squareFootage,
-          yearBuilt: listing.yearBuilt,
-          propertyType: listing.propertyType,
-          lotSize: listing.lotSize,
-          daysOnMarket: listing.daysOnMarket,
-          listedDate: listing.listedDate,
-        };
-      }
-    }
+    const resp = await fetch("/api/rentcast", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
   } catch (_) {
-    // Fall through to AVM
+    return null;
   }
-
-  try {
-    const avmResp = await fetch(
-      `${RENTCAST_API_URL}/avm/value?address=${encodeURIComponent(address)}`,
-      { headers: { "X-Api-Key": apiKey } }
-    );
-    if (avmResp.ok) {
-      const avm = await avmResp.json();
-      return {
-        source: "estimate",
-        price: avm.price,
-        priceLow: avm.priceRangeLow,
-        priceHigh: avm.priceRangeHigh,
-        address: avm.formattedAddress,
-        city: avm.city,
-        state: avm.state,
-        zipCode: avm.zipCode,
-        beds: avm.bedrooms,
-        baths: avm.bathrooms,
-        sqft: avm.squareFootage,
-        yearBuilt: avm.yearBuilt,
-        propertyType: avm.propertyType,
-        lotSize: avm.lotSize,
-      };
-    }
-  } catch (_) {
-    // Fall through to null
-  }
-
-  return null;
 }
 
 export default function TrueCostAI() {
@@ -201,14 +146,9 @@ Return ONLY a valid JSON object (no markdown, no text outside the JSON):
 
 Use the verified property data above when available. For cost estimates, use your knowledge of US real estate, county tax rates, regional utility costs, and insurance risk factors.`;
 
-      const resp = await fetch(ANTHROPIC_API_URL, {
+      const resp = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 2500,
