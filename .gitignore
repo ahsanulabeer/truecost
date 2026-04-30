@@ -30,3 +30,6 @@ dist-ssr
 
 # Claude Code workspace state
 .claude/
+
+# Local Netlify folder
+.netlify

@@ -1,36 +1,37 @@
-import ResultHeader from "./ResultHeader";
+import PropertyHero from "./PropertyHero";
 import CostCards from "./CostCards";
-import TotalBar from "./TotalBar";
 import AnalysisBlock from "./AnalysisBlock";
 import RedFlagsBlock from "./RedFlagsBlock";
 
 export default function ResultView({
   result,
   propertyData,
+  propertyImage,
   listingPrice,
   setListingPrice,
   computedMortgage,
   trueMonthlyCost,
   trueAnnualCost,
   costToListingRatio,
+  propertyCardRef,
 }) {
   return (
     <div className="result-grid">
-      <ResultHeader
+      <PropertyHero
         property={result.property}
         confidence={result.confidence}
         propertyData={propertyData}
+        propertyImage={propertyImage}
         listingPrice={listingPrice}
         setListingPrice={setListingPrice}
+        trueMonthlyCost={trueMonthlyCost}
+        trueAnnualCost={trueAnnualCost}
+        costToListingRatio={costToListingRatio}
+        cardRef={propertyCardRef}
       />
       <CostCards
         monthlyCosts={result.monthlyCosts}
         computedMortgage={computedMortgage}
-      />
-      <TotalBar
-        trueMonthlyCost={trueMonthlyCost}
-        trueAnnualCost={trueAnnualCost}
-        costToListingRatio={costToListingRatio}
       />
       <AnalysisBlock
         analysis={result.analysis}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import Header from "./components/Header";
 import SearchForm from "./components/SearchForm";
@@ -19,6 +19,20 @@ async function fetchRentCastData(address) {
   }
 }
 
+async function fetchPropertyImage(address) {
+  try {
+    const resp = await fetch("/api/property-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
 export default function TrueCostAI() {
   const [address, setAddress] = useState("");
   const [listingPrice, setListingPrice] = useState("");
@@ -28,7 +42,10 @@ export default function TrueCostAI() {
   const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState(null);
   const [propertyData, setPropertyData] = useState(null);
+  const [propertyImage, setPropertyImage] = useState(null);
   const [error, setError] = useState(null);
+  const resultsAnchorRef = useRef(null);
+  const propertyCardRef = useRef(null);
 
   useEffect(() => {
     let interval;
@@ -41,20 +58,51 @@ export default function TrueCostAI() {
     return () => clearInterval(interval);
   }, [loading]);
 
+  useEffect(() => {
+    if (result) {
+      propertyCardRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    }
+  }, [result]);
+
+  function goHome() {
+    setAddress("");
+    setListingPrice("");
+    setResult(null);
+    setPropertyData(null);
+    setPropertyImage(null);
+    setError(null);
+    setLoading(false);
+    setLoadingStep(0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function analyze() {
     if (!address.trim()) return;
     setLoading(true);
     setResult(null);
     setPropertyData(null);
+    setPropertyImage(null);
     setError(null);
     setListingPrice("");
+
+    resultsAnchorRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
 
     const down = parseFloat(downPayment) || 20;
     const rate = parseFloat(interestRate) || 7.1;
 
     try {
-      const rcData = await fetchRentCastData(address.trim());
+      const [rcData, imgData] = await Promise.all([
+        fetchRentCastData(address.trim()),
+        fetchPropertyImage(address.trim()),
+      ]);
       setPropertyData(rcData);
+      setPropertyImage(imgData);
 
       if (rcData?.price) {
         setListingPrice(rcData.price.toString());
@@ -236,7 +284,7 @@ Use the verified property data above when available. For cost estimates, use you
 
   return (
     <div className="app">
-      <Header interestRate={interestRate} />
+      <Header interestRate={interestRate} onHome={goHome} />
 
       <main className="main">
         <h1 className="headline">
@@ -260,6 +308,8 @@ Use the verified property data above when available. For cost estimates, use you
           onAnalyze={analyze}
         />
 
+        <div ref={resultsAnchorRef} aria-hidden="true" />
+
         {loading && <LoadingState loadingStep={loadingStep} />}
 
         {error && <div className="error-box">{error}</div>}
@@ -268,12 +318,14 @@ Use the verified property data above when available. For cost estimates, use you
           <ResultView
             result={result}
             propertyData={propertyData}
+            propertyImage={propertyImage}
             listingPrice={listingPrice}
             setListingPrice={setListingPrice}
             computedMortgage={computedMortgage}
             trueMonthlyCost={trueMonthlyCost}
             trueAnnualCost={trueAnnualCost}
             costToListingRatio={costToListingRatio}
+            propertyCardRef={propertyCardRef}
           />
         )}
       </main>

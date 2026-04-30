@@ -1,12 +1,19 @@
 import pkg from "../../package.json";
 
-export default function Header({ interestRate }) {
+export default function Header({ interestRate, onHome }) {
   return (
     <header className="header">
       <div>
-        <div className="logo">
-          TrueCost <span className="logo-version">v{pkg.version}</span>
-        </div>
+        <button
+          type="button"
+          className="logo-link"
+          onClick={onHome}
+          aria-label="TrueCost home"
+        >
+          <span className="logo">
+            TrueCost <span className="logo-version">v{pkg.version}</span>
+          </span>
+        </button>
       </div>
       <div className="logo-sub">The real cost of home</div>
       <div className="ticker">
