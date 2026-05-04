@@ -24,18 +24,10 @@ export default async (req) => {
 
   const enc = encodeURIComponent(address);
 
-  let hasStreetView = false;
-  try {
-    const r = await fetch(
-      `${STATIC_BASE}/streetview/metadata?location=${enc}&key=${apiKey}`
-    );
-    if (r.ok) {
-      const meta = await r.json();
-      hasStreetView = meta.status === "OK";
-    }
-  } catch {
-    // fall through — map-only result
-  }
+  const [hasStreetView, formattedAddress] = await Promise.all([
+    checkStreetView(enc, apiKey),
+    geocodeAddress(enc, apiKey),
+  ]);
 
   const streetViewUrl = hasStreetView
     ? `${STATIC_BASE}/streetview?size=800x350&location=${enc}&fov=80&pitch=4&key=${apiKey}`
@@ -43,8 +35,35 @@ export default async (req) => {
 
   const mapUrl = `${STATIC_BASE}/staticmap?center=${enc}&zoom=17&size=800x350&maptype=hybrid&markers=color:0xc44b4b%7C${enc}&key=${apiKey}`;
 
-  return jsonOk({ hasStreetView, streetViewUrl, mapUrl });
+  return jsonOk({ hasStreetView, streetViewUrl, mapUrl, formattedAddress });
 };
+
+async function checkStreetView(enc, apiKey) {
+  try {
+    const r = await fetch(
+      `${STATIC_BASE}/streetview/metadata?location=${enc}&key=${apiKey}`
+    );
+    if (!r.ok) return false;
+    const meta = await r.json();
+    return meta.status === "OK";
+  } catch {
+    return false;
+  }
+}
+
+async function geocodeAddress(enc, apiKey) {
+  try {
+    const r = await fetch(
+      `${STATIC_BASE}/geocode/json?address=${enc}&key=${apiKey}`
+    );
+    if (!r.ok) return null;
+    const data = await r.json();
+    if (data.status !== "OK") return null;
+    return data.results?.[0]?.formatted_address || null;
+  } catch {
+    return null;
+  }
+}
 
 function jsonOk(data) {
   return new Response(JSON.stringify(data), {

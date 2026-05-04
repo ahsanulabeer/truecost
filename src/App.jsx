@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import SearchForm from "./components/SearchForm";
 import LoadingState, { LOADING_STEP_COUNT } from "./components/LoadingState";
 import ResultView from "./components/ResultView";
+import NearbyListings from "./components/NearbyListings";
 
 async function fetchRentCastData(address) {
   try {
@@ -44,6 +45,8 @@ export default function TrueCostAI() {
   const [propertyData, setPropertyData] = useState(null);
   const [propertyImage, setPropertyImage] = useState(null);
   const [error, setError] = useState(null);
+  const [nearbyDismissed, setNearbyDismissed] = useState(false);
+  const [nearbyHasListings, setNearbyHasListings] = useState(false);
   const resultsAnchorRef = useRef(null);
   const propertyCardRef = useRef(null);
 
@@ -79,8 +82,14 @@ export default function TrueCostAI() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function analyze() {
-    if (!address.trim()) return;
+  async function analyze(addressOverride) {
+    const target = (addressOverride ?? address).trim();
+    if (!target) return;
+    if (addressOverride) {
+      setAddress(addressOverride);
+    } else if (!nearbyHasListings) {
+      setNearbyDismissed(true);
+    }
     setLoading(true);
     setResult(null);
     setPropertyData(null);
@@ -98,8 +107,8 @@ export default function TrueCostAI() {
 
     try {
       const [rcData, imgData] = await Promise.all([
-        fetchRentCastData(address.trim()),
-        fetchPropertyImage(address.trim()),
+        fetchRentCastData(target),
+        fetchPropertyImage(target),
       ]);
       setPropertyData(rcData);
       setPropertyImage(imgData);
@@ -111,10 +120,13 @@ export default function TrueCostAI() {
       const hasRealData = rcData !== null;
       const price = rcData?.price || null;
 
+      const resolvedAddress =
+        rcData?.address || imgData?.formattedAddress || target;
+
       let propertyContext;
       if (hasRealData) {
         const details = [
-          rcData.address && `Address: ${rcData.address}`,
+          `Address: ${resolvedAddress}`,
           price && `Listing/Estimated Price: $${price.toLocaleString()} (${rcData.source === "listing" ? "active MLS listing" : "AVM estimate"})`,
           rcData.propertyType && `Property Type: ${rcData.propertyType}`,
           rcData.beds && `Bedrooms: ${rcData.beds}`,
@@ -125,7 +137,7 @@ export default function TrueCostAI() {
         ].filter(Boolean).join("\n");
         propertyContext = `VERIFIED PROPERTY DATA (from RentCast API — use these exact values):\n${details}`;
       } else {
-        propertyContext = `Address: ${address}\nNote: No property data was found via the data API. Interpret the address flexibly and estimate all values based on the neighborhood/area.`;
+        propertyContext = `Address: ${resolvedAddress}\nNote: No property data was found via the data API. Interpret the address flexibly and estimate all values based on the neighborhood/area.`;
       }
 
       let mortgageContext = "";
@@ -223,7 +235,10 @@ Use the verified property data above when available. For cost estimates, use you
       if (rcData) {
         parsed.property = {
           ...parsed.property,
-          address: rcData.address || parsed.property?.address,
+          address:
+            rcData.address ||
+            imgData?.formattedAddress ||
+            parsed.property?.address,
           city: rcData.city || parsed.property?.city,
           state: rcData.state || parsed.property?.state,
           estimatedListingPrice: rcData.price || parsed.property?.estimatedListingPrice,
@@ -307,6 +322,13 @@ Use the verified property data above when available. For cost estimates, use you
           loading={loading}
           onAnalyze={analyze}
         />
+
+        {!nearbyDismissed && (
+          <NearbyListings
+            onSelectListing={(addr) => analyze(addr)}
+            onListingsLoaded={() => setNearbyHasListings(true)}
+          />
+        )}
 
         <div ref={resultsAnchorRef} aria-hidden="true" />
 

@@ -15,17 +15,39 @@ export default async (req) => {
     return jsonError(400, "Invalid JSON body");
   }
 
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify(body),
-  });
+  let resp;
+  try {
+    resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    return jsonError(502, `Upstream fetch failed: ${err.message}`);
+  }
 
   const text = await resp.text();
+
+  if (!resp.ok) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = null;
+    }
+    const message =
+      parsed?.error?.message ||
+      (typeof parsed === "string" ? parsed : null) ||
+      text.slice(0, 400) ||
+      `Anthropic ${resp.status} ${resp.statusText}`;
+    console.error("Anthropic error", resp.status, message);
+    return jsonError(resp.status, message);
+  }
+
   return new Response(text, {
     status: resp.status,
     headers: { "Content-Type": "application/json" },
