@@ -20,7 +20,7 @@ export default function SearchForm({
         />
         <button
           className="analyze-btn"
-          onClick={onAnalyze}
+          onClick={() => onAnalyze()}
           disabled={loading || !address.trim()}
         >
           {loading ? "Analyzing..." : "Analyze"}

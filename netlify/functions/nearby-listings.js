@@ -27,12 +27,15 @@ export default async (req) => {
   }
 
   const limit = Number.isFinite(Number(body?.limit)) ? Number(body.limit) : 6;
+  const rawOffset = Number(body?.offset);
+  const offset =
+    Number.isFinite(rawOffset) && rawOffset >= 0 ? Math.floor(rawOffset) : 0;
 
   const zip = mapsKey ? await reverseGeocodeZip(lat, lng, mapsKey) : null;
 
   const url = zip
-    ? `${RENTCAST_BASE}/listings/sale?zipCode=${zip}&status=Active&limit=${limit}`
-    : `${RENTCAST_BASE}/listings/sale?latitude=${lat}&longitude=${lng}&radius=1&status=Active&limit=${limit}`;
+    ? `${RENTCAST_BASE}/listings/sale?zipCode=${zip}&status=Active&limit=${limit}&offset=${offset}`
+    : `${RENTCAST_BASE}/listings/sale?latitude=${lat}&longitude=${lng}&radius=1&status=Active&limit=${limit}&offset=${offset}`;
 
   try {
     const r = await fetch(url, { headers: { "X-Api-Key": rentcastKey } });

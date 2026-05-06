@@ -13,7 +13,6 @@ export default function ResultView({
   trueMonthlyCost,
   trueAnnualCost,
   costToListingRatio,
-  propertyCardRef,
 }) {
   return (
     <div className="result-grid">
@@ -27,7 +26,6 @@ export default function ResultView({
         trueMonthlyCost={trueMonthlyCost}
         trueAnnualCost={trueAnnualCost}
         costToListingRatio={costToListingRatio}
-        cardRef={propertyCardRef}
       />
       <CostCards
         monthlyCosts={result.monthlyCosts}

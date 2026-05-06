@@ -1,4 +1,4 @@
-import { formatCurrency } from "../utils/format";
+import { formatCurrency, formatThousands } from "../utils/format";
 
 export default function PropertyHero({
   property,
@@ -10,7 +10,6 @@ export default function PropertyHero({
   trueMonthlyCost,
   trueAnnualCost,
   costToListingRatio,
-  cardRef,
 }) {
   const meta = [
     property?.beds && `${property.beds} bd`,
@@ -27,7 +26,7 @@ export default function PropertyHero({
     propertyImage?.hasStreetView && propertyImage?.mapUrl;
 
   return (
-    <article ref={cardRef} className="property-card">
+    <article className="property-card">
       {heroSrc && (
         <div className="property-card-media">
           <img
@@ -77,8 +76,9 @@ export default function PropertyHero({
             <input
               className="price-list-input"
               placeholder="Enter price"
+              inputMode="numeric"
               value={listingPrice}
-              onChange={(e) => setListingPrice(e.target.value)}
+              onChange={(e) => setListingPrice(formatThousands(e.target.value))}
             />
             <div className="price-hint">Edit to recalculate</div>
           </div>

@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import Header from "./components/Header";
 import SearchForm from "./components/SearchForm";
 import LoadingState, { LOADING_STEP_COUNT } from "./components/LoadingState";
 import ResultView from "./components/ResultView";
 import NearbyListings from "./components/NearbyListings";
+import { formatThousands } from "./utils/format";
 
 async function fetchRentCastData(address) {
   try {
@@ -45,10 +46,7 @@ export default function TrueCostAI() {
   const [propertyData, setPropertyData] = useState(null);
   const [propertyImage, setPropertyImage] = useState(null);
   const [error, setError] = useState(null);
-  const [nearbyDismissed, setNearbyDismissed] = useState(false);
-  const [nearbyHasListings, setNearbyHasListings] = useState(false);
-  const resultsAnchorRef = useRef(null);
-  const propertyCardRef = useRef(null);
+  const [nearbyKey, setNearbyKey] = useState(0);
 
   useEffect(() => {
     let interval;
@@ -61,15 +59,6 @@ export default function TrueCostAI() {
     return () => clearInterval(interval);
   }, [loading]);
 
-  useEffect(() => {
-    if (result) {
-      propertyCardRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
-      });
-    }
-  }, [result]);
-
   function goHome() {
     setAddress("");
     setListingPrice("");
@@ -79,16 +68,16 @@ export default function TrueCostAI() {
     setError(null);
     setLoading(false);
     setLoadingStep(0);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNearbyKey((k) => k + 1);
   }
 
   async function analyze(addressOverride) {
-    const target = (addressOverride ?? address).trim();
+    const overrideAddr =
+      typeof addressOverride === "string" ? addressOverride : null;
+    const target = (overrideAddr ?? address).trim();
     if (!target) return;
-    if (addressOverride) {
-      setAddress(addressOverride);
-    } else if (!nearbyHasListings) {
-      setNearbyDismissed(true);
+    if (overrideAddr) {
+      setAddress(overrideAddr);
     }
     setLoading(true);
     setResult(null);
@@ -96,11 +85,6 @@ export default function TrueCostAI() {
     setPropertyImage(null);
     setError(null);
     setListingPrice("");
-
-    resultsAnchorRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
 
     const down = parseFloat(downPayment) || 20;
     const rate = parseFloat(interestRate) || 7.1;
@@ -114,7 +98,7 @@ export default function TrueCostAI() {
       setPropertyImage(imgData);
 
       if (rcData?.price) {
-        setListingPrice(rcData.price.toString());
+        setListingPrice(formatThousands(rcData.price));
       }
 
       const hasRealData = rcData !== null;
@@ -251,7 +235,7 @@ Use the verified property data above when available. For cost estimates, use you
       }
 
       if (!listingPrice && parsed.property?.estimatedListingPrice) {
-        setListingPrice(parsed.property.estimatedListingPrice.toString());
+        setListingPrice(formatThousands(parsed.property.estimatedListingPrice));
       }
 
       setResult(parsed);
@@ -299,57 +283,56 @@ Use the verified property data above when available. For cost estimates, use you
 
   return (
     <div className="app">
-      <Header interestRate={interestRate} onHome={goHome} />
+      <Header onHome={goHome} />
 
       <main className="main">
-        <h1 className="headline">
-          What does it <span>really</span> cost
-          <br />
-          to own your home?
-        </h1>
-        <p className="subhead">
-          Beyond the listing price — mortgage, taxes, insurance, utilities,
-          maintenance, and HOA. The full picture, powered by real data.
-        </p>
+        <section className="left-panel">
+          <h1 className="headline">
+            What does it <span>really</span> cost
+            <br />
+            to own your home?
+          </h1>
+          <p className="subhead">
+            Beyond the listing price — mortgage, taxes, insurance, utilities,
+            maintenance, and HOA. The full picture, powered by real data.
+          </p>
 
-        <SearchForm
-          address={address}
-          setAddress={setAddress}
-          downPayment={downPayment}
-          setDownPayment={setDownPayment}
-          interestRate={interestRate}
-          setInterestRate={setInterestRate}
-          loading={loading}
-          onAnalyze={analyze}
-        />
-
-        {!nearbyDismissed && (
-          <NearbyListings
-            onSelectListing={(addr) => analyze(addr)}
-            onListingsLoaded={() => setNearbyHasListings(true)}
+          <SearchForm
+            address={address}
+            setAddress={setAddress}
+            downPayment={downPayment}
+            setDownPayment={setDownPayment}
+            interestRate={interestRate}
+            setInterestRate={setInterestRate}
+            loading={loading}
+            onAnalyze={analyze}
           />
-        )}
+        </section>
 
-        <div ref={resultsAnchorRef} aria-hidden="true" />
-
-        {loading && <LoadingState loadingStep={loadingStep} />}
-
-        {error && <div className="error-box">{error}</div>}
-
-        {result && (
-          <ResultView
-            result={result}
-            propertyData={propertyData}
-            propertyImage={propertyImage}
-            listingPrice={listingPrice}
-            setListingPrice={setListingPrice}
-            computedMortgage={computedMortgage}
-            trueMonthlyCost={trueMonthlyCost}
-            trueAnnualCost={trueAnnualCost}
-            costToListingRatio={costToListingRatio}
-            propertyCardRef={propertyCardRef}
-          />
-        )}
+        <section className="right-panel">
+          {loading ? (
+            <LoadingState loadingStep={loadingStep} />
+          ) : error ? (
+            <div className="error-box">{error}</div>
+          ) : result ? (
+            <ResultView
+              result={result}
+              propertyData={propertyData}
+              propertyImage={propertyImage}
+              listingPrice={listingPrice}
+              setListingPrice={setListingPrice}
+              computedMortgage={computedMortgage}
+              trueMonthlyCost={trueMonthlyCost}
+              trueAnnualCost={trueAnnualCost}
+              costToListingRatio={costToListingRatio}
+            />
+          ) : (
+            <NearbyListings
+              refreshSignal={nearbyKey}
+              onSelectListing={(addr) => analyze(addr)}
+            />
+          )}
+        </section>
       </main>
     </div>
   );
