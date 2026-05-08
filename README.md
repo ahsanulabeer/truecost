@@ -5,21 +5,28 @@
 TrueCost takes a US home address and returns the **true monthly cost of ownership**: mortgage P+I, property tax, insurance, utilities, maintenance reserves, and HOA — all in one view. It combines real listing/AVM data from RentCast with regional cost analysis from Anthropic's Claude API to give a much more honest picture than the sticker price alone.
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
-![Version](https://img.shields.io/badge/version-0.5.0-blue)
+![Version](https://img.shields.io/badge/version-0.6.0-blue)
 
 ## Features
 
 - **Two-column app layout** — fixed-viewport: search bar + intro on the left (vertically centered, doesn't move), results / suggestions / loading on the right with internal scroll. Mobile collapses to a single column with normal page scroll
-- **Auto-loaded nearby listings** — geolocation request fires on first paint; if granted, the right panel populates with ~6 active MLS listings from the user's ZIP. If the user denies (or geolocation fails), the panel populates anyway, falling back to a randomized pick from a curated NYC residential neighborhood list (Park Slope, Astoria, Forest Hills, Riverdale, UWS, Bay Ridge, Jackson Heights, Williamsburg, LIC, Sunset Park) — title swaps to "Homes in [Neighborhood]" so it's never a lie
-- **Refresh suggestions** — circular icon button in the listings header advances the RentCast offset by 6 each click (shows the next page). Logo click does the same. Existing cards stay visible and dim during fetch (no skeleton flash); icon spins. Wraps back to offset 0 if the page returns 0 listings
+- **Address autocomplete** — Google Places suggestions appear as the user types (debounced, US-address-restricted, keyboard-navigable). Server-side `addressValid` check (Google Geocoding `location_type` + `street_number` presence) catches paste/junk bypasses
+- **Auto-loaded nearby listings** — geolocation request fires on first paint; the right panel populates with ~10 active MLS listings filtered to **Single Family + Multi-Family** from the user's ZIP. If geolocation is denied or fails, falls back to a randomized pick from a curated NYC residential neighborhood list (Park Slope, Astoria, Forest Hills, Riverdale, UWS, Bay Ridge, Jackson Heights, Williamsburg, LIC, Sunset Park) — title swaps to "Homes in [Neighborhood]"
+- **Refresh suggestions** — circular icon button in the listings header (and a logo click) advances the RentCast offset by 10 each time. Existing cards dim during fetch — no skeleton flash; icon spins. Wraps back to offset 0 if the page returns 0 listings
+- **Compare-another strip in results** — after viewing a TrueCost report, a horizontal-scrolling row of nearby listings appears at the bottom. One click → analyze that property. The currently-displayed property is filtered out so you don't compare to yourself
 - **Listing-card result view** — analysis renders as a Zillow-style property card with a Street View hero, address heading, beds · baths · sqft · year-built meta, and a side-by-side List Price / True Monthly block
-- **Real property data** — active MLS listings or AVM valuations from [RentCast](https://www.rentcast.io/api)
-- **Live cost analysis** — Claude estimates regional taxes, utilities, insurance, and maintenance based on the property's location, age, and characteristics
+- **Interactive cost breakdowns** — every cost card is clickable; opens a modal with an SVG donut chart breaking the line into sub-components (mortgage P+I split, property-tax jurisdictions, insurance categories, utility services, maintenance reserve buckets, HOA allocations). Hover any slice to dim others and see label/amount/percentage in the donut center; legend rows highlight in sync
+- **Configurable mortgage** — pick from **30 / 20 / 15 / 10-year fixed** or **5/1, 7/1, 10/1 ARM**. Term drives amortization math; ARM selection automatically surfaces a rate-reset risk in the red flags
+- **Household size factor** — 1–5+ occupants. Drives utilities (near-linear scaling) and maintenance estimates
+- **Verified property tax (when available)** — RentCast's `/properties` endpoint pulls public-record tax data; when present, the propertyTax line is overridden with the verified annual amount divided by 12, and the breakdown is scaled proportionally to sum to the verified total
+- **Real property data** — active MLS listings or AVM valuations from RentCast
+- **Live cost analysis** — AI cost estimates for regional taxes, utilities, insurance, maintenance, and HOA based on the property's location, age, type, and household size
 - **Property imagery** — Google Maps Static + Street View Static images, with metadata-checked fallback to a hybrid satellite map when no Street View is available
-- **Authoritative formatted addresses** — when RentCast returns an estimate without a normalized address (or the typed input is messy), the property-image function reverse-geocodes via Google so the displayed address is always canonical
-- **Adjustable inputs** — change list price, down payment, or interest rate and totals recompute instantly. List price formats with thousand separators as you type
+- **Authoritative formatted addresses** — Google Geocoding canonicalizes messy input (e.g. "123 main st brooklyn" → "123 Main St, Brooklyn, NY 11201")
+- **Adjustable inputs** — change list price, down payment, interest rate, loan type, or household size; totals recompute instantly. List price formats with thousand separators as you type
+- **How it works** — header pill button opens a methodology modal (data sources, what's verified vs. estimated, what's adjustable, disclaimers)
 - **Confidence + source badges** — every result tells you whether the price came from a live listing or an AVM estimate, and the model's confidence
-- **Cost considerations** — 0–3 region-specific red flags (flood zones, high tax districts, aging systems, etc.)
+- **Cost considerations** — 0–3 region-specific red flags (flood zones, high tax districts, aging systems, ARM rate-reset risk)
 - **Multi-phase loading screen** — single line of icon "stations" (search → home → tax → utilities → maintenance → insurance → done) above a thin progress bar; the active station pulses red, completed stations fill black, the bar fills with the brand red as the analysis proceeds
 
 ## Stack
@@ -45,7 +52,10 @@ netlify dev                  # serves the site + functions at localhost:8888
 You'll need:
 - An [Anthropic API key](https://console.anthropic.com/settings/keys)
 - A [RentCast API key](https://app.rentcast.io/app/api) (free tier covers `/listings/sale`; AVM `/avm/value` requires a paid plan)
-- A [Google Maps API key](https://console.cloud.google.com/apis/credentials) with **Maps Static API**, **Street View Static API**, and **Geocoding API** enabled (Geocoding powers the canonical-address fallback and the lat/lng → ZIP lookup behind nearby listings). For production, restrict the key to HTTP referrers matching your domain — the key is embedded in image URLs sent to the browser.
+- **Two Google Maps API keys** (the project splits browser-side vs. server-side calls so each key has minimum scope):
+  - `GOOGLE_MAPS_API_KEY` — used for **Maps Static API** and **Street View Static API** image URLs that ride along in browser image tags. Restrict this one to **HTTP referrers** matching your domain.
+  - `GOOGLE_MAPS_SERVER_KEY` — used by Netlify functions for **Geocoding API**, **Street View Static API** (metadata only), and **Places API** (autocomplete). Server calls have no HTTP referrer, so this key needs **Application restrictions: None**, with API restrictions limited to those three APIs. Without it, address autocomplete, address validation, ZIP-based listings lookup, and Street View availability checks all fail silently.
+  - Optional simplification: if you don't want a second key, set only `GOOGLE_MAPS_API_KEY` with Application restrictions = None and all three APIs enabled — the server functions fall back to it. Less secure (a leaked key has wider scope) but works.
 
 > ⚠️ Use `netlify dev`, **not** `npm run dev`. The vanilla Vite dev server doesn't run the serverless functions in `netlify/functions/`, so the API calls would 404.
 
@@ -54,25 +64,32 @@ You'll need:
 ```
 netlify/functions/
 ├── analyze.js              — Anthropic proxy (keeps the key server-side, normalizes upstream errors)
-├── rentcast.js             — RentCast proxy (listings + AVM fallback)
-├── property-image.js       — Google Maps proxy (Street View metadata + Geocoding for canonical address + image URLs)
-└── nearby-listings.js      — Reverse-geocode lat/lng → ZIP, RentCast listings-by-ZIP, parallel Street View per listing
+├── rentcast.js             — RentCast proxy: parallel /listings + /avm + /properties; merges price/details with public-records property tax
+├── property-image.js       — Google Maps proxy: Street View metadata + Geocoding (canonical address + addressValid signal + image URLs)
+├── nearby-listings.js      — Lat/lng → ZIP via Geocoding; parallel RentCast /listings calls for Single Family + Multi-Family; interleaves and dedups; attaches Street View / static map per listing
+└── place-autocomplete.js   — Google Places Autocomplete proxy for the address input dropdown (US-restricted, address-shape-only)
 
 src/
-├── App.jsx                 — state, two-column layout, analyze() orchestration, derived totals
+├── App.jsx                 — state, two-column layout, analyze() orchestration, derived totals (mortgage P+I + breakdown), tax override pipeline
 ├── App.css                 — all visual styles
 ├── components/
-│   ├── Header.jsx          — minimal: logo (red equal-mark + wordmark + tagline) that triggers a refresh on click
-│   ├── SearchForm.jsx      — address input, params, analyze button
+│   ├── Header.jsx          — logo (red equal-mark + wordmark + tagline) + "How it works" pill
+│   ├── HowItWorksModal.jsx — methodology / data-source / verified-vs-estimated explainer modal
+│   ├── SearchForm.jsx      — address input with Places autocomplete dropdown, params (down/rate/household/loan-type), Generate TrueCost Report CTA
 │   ├── LoadingState.jsx    — icon-station progress bar with single-phrase status
-│   ├── NearbyListings.jsx  — auto-fires geolocation, NYC fallback, paginated refresh, image-led property cards
+│   ├── NearbyListings.jsx  — image-led property cards grid (presentational only — state lives in useNearbyListings hook)
+│   ├── CompareStrip.jsx    — horizontal-scrolling listings strip rendered at the bottom of the result view; click to analyze another property
 │   ├── ResultView.jsx      — orchestrates the result section
 │   ├── PropertyHero.jsx    — listing-card: image hero, address, meta, List Price + True Monthly side-by-side, badges
-│   ├── CostCards.jsx       — 6-card monthly cost grid
+│   ├── CostCards.jsx       — 6-card monthly cost grid; click any card → CostBreakdownModal
+│   ├── CostBreakdownModal.jsx — modal with SVG donut chart, hover-linked legend, and per-slice center display
 │   ├── AnalysisBlock.jsx   — narrative + market context
 │   └── RedFlagsBlock.jsx   — cost-warning items
+├── hooks/
+│   └── useNearbyListings.js — single-source hook for listings: geolocation, NYC fallback, paginated fetch, refresh, wrap-around
 └── utils/
-    └── format.js           — currency formatter + thousand-separator helper
+    ├── format.js           — currency formatter + thousand-separator helper
+    └── loans.js            — loan-type catalog (30/20/15/10-year fixed + 5/7/10-year ARM): term months, ARM flag, prompt description
 ```
 
 ## Deploy (Netlify)
@@ -83,11 +100,12 @@ The frontend and the proxy functions deploy together — there's no separate bac
 2. In **Netlify dashboard → Site settings → Environment variables**, add:
    - `ANTHROPIC_API_KEY`
    - `RENTCAST_API_KEY`
-   - `GOOGLE_MAPS_API_KEY`
+   - `GOOGLE_MAPS_API_KEY` — browser-side, referrer-restricted (Maps Static + Street View Static images that ride along in browser image tags)
+   - `GOOGLE_MAPS_SERVER_KEY` — server-side, application-restriction = None, scoped to Geocoding + Street View Static + Places. Optional but strongly recommended; falls back to `GOOGLE_MAPS_API_KEY` if not set, but only works if that key has unrestricted application access.
 
    (No `VITE_` prefix — these are read by the serverless functions, not the client.)
-3. Netlify reads `netlify.toml` for the build command, publish directory, and `/api/*` → `/.netlify/functions/:splat` redirect, so `/api/analyze`, `/api/rentcast`, `/api/property-image`, and `/api/nearby-listings` route to the functions automatically.
-4. In **Google Cloud Console**, restrict your Maps API key to HTTP referrers matching your deployed domain (e.g. `https://yoursite.netlify.app/*`). The key is embedded in the image URLs returned to the browser — referrer restriction is what stops third parties from using your quota.
+3. Netlify reads `netlify.toml` for the build command, publish directory, and `/api/*` → `/.netlify/functions/:splat` redirect, so `/api/analyze`, `/api/rentcast`, `/api/property-image`, `/api/nearby-listings`, and `/api/place-autocomplete` route to the functions automatically.
+4. In **Google Cloud Console**, restrict `GOOGLE_MAPS_API_KEY` to **HTTP referrers** matching your deployed domain (e.g. `https://yoursite.netlify.app/*`). The key is embedded in image URLs the browser fetches directly — referrer restriction is what stops third parties from using your quota. Keep `GOOGLE_MAPS_SERVER_KEY` with **Application restrictions = None** since Netlify outbound IPs aren't fixed; lock it down by **API restrictions** instead (Geocoding + Street View Static + Places).
 
 ## Security
 
@@ -99,12 +117,27 @@ If you previously ran with `VITE_*`-prefixed keys (those got inlined into the br
 
 ## Versioning
 
-This project follows [Semantic Versioning](https://semver.org/). Current version: **0.5.0** (two-column layout + brand refresh + auto-loaded suggestions + redesigned loading state).
+This project follows [Semantic Versioning](https://semver.org/). Current version: **0.6.0** (address autocomplete + interactive cost breakdowns + listing comparison strip + loan/household configurability + verified property tax).
 
 The version shown in the app header is read directly from `package.json`. Bump it there before tagging a release.
 
 ### Changelog
 
+- **0.6.0**
+  - **Address autocomplete + validation.** New `/api/place-autocomplete` proxy calls Google Places Autocomplete (US-restricted, address-shape-only, capped at 5 suggestions). `SearchForm` debounces input by 250ms, renders a dropdown beneath the input with structured (main + secondary) results, supports keyboard navigation (Up/Down highlights, Enter selects, Esc dismisses), and refetches on focus when the user comes back to fix an input after an error. Server-side validation hardened: `/api/property-image` now also returns `addressValid`, requiring Google to geocode the input with a `street_number` component AND a non-`APPROXIMATE` `location_type`. RentCast is no longer trusted as an address validator (its loose matching previously let "Brooklyn, NY" through).
+  - **Two-key Google Maps split.** Server-side calls (Geocoding, Places, Street View metadata) now use a separate `GOOGLE_MAPS_SERVER_KEY` env var with no application restriction; the original `GOOGLE_MAPS_API_KEY` stays referrer-restricted for image URLs. Falls back to the single key if the server var is unset. Solves the `REQUEST_DENIED — API keys with referer restrictions cannot be used with this API` failure for Places and was silently breaking Geocoding (and therefore the canonical-address fallback + ZIP-based listings lookup) for users with referrer-restricted keys.
+  - **Loan type selector.** New dropdown in the params row: 30 / 20 / 15 / 10-year fixed and 5/1, 7/1, 10/1 ARM. Term drives both the prompt's pre-calculated mortgage and the live `computedMortgage` reactive recompute (formerly hardcoded to 360 months). ARM selection appends a directive to the prompt instructing Claude to surface rate-reset risk in the red flags. Introduced `src/utils/loans.js` as the single catalog used by both `App.jsx` math and `SearchForm` UI.
+  - **Household size factor.** New select (1–5+) in the params row. Wired into the prompt as a `householdContext` block telling Claude to scale utilities near-linearly (4-person ≈ 2× 1-person at the same property) and to bump maintenance modestly (~10–15%) for heavier occupancy.
+  - **Verified property tax.** `/api/rentcast` now also calls RentCast's `/properties` endpoint in parallel (independent of listings/AVM). New `extractAnnualTax` defensively parses the `propertyTaxes` field (object-keyed-by-year or array shapes), picks the most-recent positive total. When present, the prompt's verified-data block names the exact annual + monthly figure for Claude to use, AND `App.jsx` overrides `parsed.monthlyCosts.propertyTax.amount` after the fact (`Math.round(annualTax / 12)`) and proportionally scales the breakdown sub-amounts so the pie chart stays internally consistent. Sets `source: "public-records"` and `taxYear` for future "verified" badge display.
+  - **Suggested-listing type filter.** `/api/nearby-listings` now fans out into two parallel RentCast calls per refresh — `propertyType=Single Family` and `propertyType=Multi-Family` — splitting `limit/2` and `offset/2` between them. Results are interleaved (SFH[0], MFH[0], SFH[1], MFH[1], ...), deduped by formatted address, and capped at the requested `limit`. No more condos/townhouses/manufactured/etc. cluttering the suggestion grid.
+  - **Page size + skeleton bumped.** `PAGE_SIZE` raised from 6 → 10 listings per page; loading skeleton from 4 → 8 cards so the placeholder doesn't look thin against the final grid.
+  - **Cost-card breakdown modals (donut + hover).** Each `CostCards` card is now a clickable `<button>`. Click opens `CostBreakdownModal` with: large navy total at top, an SVG donut chart (280×280, `rOuter=95`, `rInner=65` — sized so center text fits two-line labels like "Personal Property"), and a legend with color swatch / label / amount / percentage. Hover any slice — others dim to 0.35 opacity, the donut center fills with the slice's label/amount/percentage, and the matching legend row picks up an `.active` background. Hovering a legend row does the same in reverse. Center overlay is `pointer-events: none` so it doesn't intercept the cursor. Mortgage's breakdown is computed client-side (first-month Principal vs. Interest from amortization math); other categories use Claude's breakdown allocations from the prompt's expanded JSON schema.
+  - **Compare-another strip in results.** Lifted listings state into a new `useNearbyListings` hook so both the listings view AND the result view can consume the same data. New `CompareStrip` component renders a horizontal-scrolling row of nearby listings at the bottom of the result view (above the disclaimer). Filters out the currently-displayed property by formatted-address match. Click any card → analyze that property without leaving results context. Same refresh button as the main listings header.
+  - **"How it works" modal.** Header pill button (top-right, `margin-left: auto`) opens a methodology modal: where the numbers come from (vendor-anonymous: "licensed real estate data partners", "AI cost analysis", "trusted mapping data"), what's user-adjustable, what's verified vs. estimated, and a closing disclaimer.
+  - **"Generate TrueCost Report" CTA.** Analyze button moved out of the search row onto its own full-width row at the bottom of the form. Renamed from "Analyze" to "Generate TrueCost Report". Picks up brand red with shadow lift on hover; disabled state until the address input has content.
+  - **List price comma formatting.** `formatThousands` helper strips non-digits and re-formats with thousands separators on every keystroke. Wired into the editable price input AND into both programmatic `setListingPrice` calls in `App.jsx` (RentCast price + Claude estimate). Existing `activePriceNum` parser at the math boundary already strips commas, so calculations remain numeric.
+  - **Bug: `analyze()` event-as-arg.** `<button onClick={onAnalyze}>` was passing the SyntheticEvent as `addressOverride`, crashing on `.trim()`. Fixed at the call site (`onClick={() => onAnalyze()}`) AND defensively in `analyze()` itself (`typeof addressOverride === "string" ? addressOverride : null`).
+  - **Favicon.** Updated to a black/red equal-mark on cream rounded-square (matches the v0.5.0 logo refresh).
 - **0.5.0**
   - **Two-column app layout.** `.app` is now a fixed `100vh` flex column with `overflow: hidden`. `.main` is a CSS grid (`minmax(360px, 5fr) minmax(0, 7fr)`) splitting the viewport in half: left panel holds the intro headline + subhead + SearchForm and is `overflow: hidden` (locked in place, vertically centered); right panel is `overflow-y: auto` with a styled scrollbar and renders one of `NearbyListings` / `LoadingState` / error / `ResultView` based on state. Mobile (< 900px) collapses to a single column with normal page scroll. Removed the old anchor refs and result-scroll effects — no longer needed when the right column is always in view.
   - **Brand refresh.** Switched the visual identity:

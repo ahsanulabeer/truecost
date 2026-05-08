@@ -2,6 +2,7 @@ import PropertyHero from "./PropertyHero";
 import CostCards from "./CostCards";
 import AnalysisBlock from "./AnalysisBlock";
 import RedFlagsBlock from "./RedFlagsBlock";
+import CompareStrip from "./CompareStrip";
 
 export default function ResultView({
   result,
@@ -10,9 +11,14 @@ export default function ResultView({
   listingPrice,
   setListingPrice,
   computedMortgage,
+  computedMortgageBreakdown,
   trueMonthlyCost,
   trueAnnualCost,
   costToListingRatio,
+  nearbyListings,
+  nearbyRefreshing,
+  onRefreshNearby,
+  onSelectListing,
 }) {
   return (
     <div className="result-grid">
@@ -30,12 +36,20 @@ export default function ResultView({
       <CostCards
         monthlyCosts={result.monthlyCosts}
         computedMortgage={computedMortgage}
+        computedMortgageBreakdown={computedMortgageBreakdown}
       />
       <AnalysisBlock
         analysis={result.analysis}
         marketContext={result.marketContext}
       />
       <RedFlagsBlock flags={result.redFlags} />
+      <CompareStrip
+        listings={nearbyListings}
+        refreshing={nearbyRefreshing}
+        onRefresh={onRefreshNearby}
+        onSelect={onSelectListing}
+        currentAddress={result.property?.address}
+      />
       <p className="disclaimer">
         TrueCost estimates combine real property data with AI-generated cost
         analysis using regional averages, public tax records, and actuarial
