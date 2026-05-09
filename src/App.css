@@ -190,7 +190,7 @@ body {
     overflow: visible;
   }
   .main {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 24px;
     padding: 24px 16px;
     overflow: visible;
@@ -199,6 +199,15 @@ body {
   .right-panel {
     overflow: visible;
     padding-right: 0;
+    min-width: 0;
+  }
+  .search-input,
+  .param-input {
+    min-width: 0;
+    width: 100%;
+  }
+  .search-row {
+    min-width: 0;
   }
 }
 
@@ -754,6 +763,48 @@ body {
   opacity: 0.7;
 }
 
+@media (max-width: 900px) {
+  .cost-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cost-card {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    column-gap: 14px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 14px 16px;
+  }
+  .cost-card-icon {
+    position: static;
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    font-size: 22px;
+    align-self: center;
+    text-align: center;
+  }
+  .cost-card-label {
+    grid-column: 2;
+    grid-row: 1;
+    margin-bottom: 0;
+  }
+  .cost-card-value {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
+    text-align: right;
+    font-size: 22px;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  .cost-card-note {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
 .analysis-block {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -995,6 +1046,30 @@ body {
 
 .nearby-listing-skeleton {
   pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .nearby-listings-grid {
+    display: flex;
+    grid-template-columns: none;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 4px 16px 16px;
+    scroll-padding-left: 16px;
+    scrollbar-width: none;
+  }
+  .nearby-listings-grid::-webkit-scrollbar {
+    display: none;
+  }
+  .nearby-listing-card {
+    flex: 0 0 78%;
+    max-width: 320px;
+    scroll-snap-align: start;
+  }
 }
 
 .skeleton-block {

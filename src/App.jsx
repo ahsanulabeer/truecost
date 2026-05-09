@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import Header from "./components/Header";
 import SearchForm from "./components/SearchForm";
@@ -51,6 +51,7 @@ export default function TrueCostAI() {
   const [propertyImage, setPropertyImage] = useState(null);
   const [error, setError] = useState(null);
   const [nearbyKey, setNearbyKey] = useState(0);
+  const rightPanelRef = useRef(null);
 
   const nearby = useNearbyListings({ refreshSignal: nearbyKey });
 
@@ -64,6 +65,15 @@ export default function TrueCostAI() {
     }
     return () => clearInterval(interval);
   }, [loading]);
+
+  useEffect(() => {
+    if (loading || result || error) {
+      rightPanelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [loading, result, error]);
 
   function goHome() {
     setAddress("");
@@ -380,7 +390,7 @@ For each monthlyCosts entry, the breakdown sub-component amounts MUST sum to the
           />
         </section>
 
-        <section className="right-panel">
+        <section className="right-panel" ref={rightPanelRef}>
           {loading ? (
             <LoadingState loadingStep={loadingStep} />
           ) : error ? (
